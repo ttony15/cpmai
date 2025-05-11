@@ -7,3 +7,4 @@ v1_router = APIRouter(prefix="/v1")
 
 v1_router.include_router(heartbeat_router)
 v1_router.include_router(report_router, prefix='/report', )
+v1_router.include_router(report_router,prefix='/prompt')

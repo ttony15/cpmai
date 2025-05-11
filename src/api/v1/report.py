@@ -16,7 +16,7 @@ report_router = APIRouter(tags=["Report"])
 )
 async def generate_report(
     project_id: str,
-    tone: str = Literal["executive", "instructional"],
+
     auth: Any = Depends(verify_jwt),
 ):
     """
