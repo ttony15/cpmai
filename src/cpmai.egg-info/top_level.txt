@@ -1,0 +1,9 @@
+__init__
+api
+app
+core
+dependencies
+domains
+exceptions
+infra
+integrations

@@ -13,8 +13,8 @@ from src.infra.db.mongo.engine import init_beanine_db  # noqa
 
 @asynccontextmanager
 async def lifespan(
-        app: FastAPI,
-        **kwargs,
+    app: FastAPI,
+    **kwargs,
 ):
     # await init_beanine_db()
     yield
@@ -43,6 +43,6 @@ def get_application() -> FastAPI:
     app.include_router(router=api_router)
 
     # Mount static files
-    app.mount("/static", StaticFiles(directory="static"), name="static")
+    # app.mount("/static", StaticFiles(directory="static"), name="static")
 
     return app
