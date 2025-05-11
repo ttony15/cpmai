@@ -22,7 +22,8 @@ class Settings(BaseSettings):
     jwks_url: str | None = None
     openai_api_key: str
     openai_embedding_model: str = "text-embedding-3-small"
-
+    s3_bucket: str = "cpm-raw-docs"
+    sqs_queue_url: str
     mongo_db_uri: str
 
     model_config = SettingsConfigDict(
