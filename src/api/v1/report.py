@@ -1,4 +1,4 @@
-from typing import Literal, Any
+from typing import Any
 
 from fastapi import APIRouter, Depends
 
@@ -16,7 +16,6 @@ report_router = APIRouter(tags=["Report"])
 )
 async def generate_report(
     project_id: str,
-
     auth: Any = Depends(verify_jwt),
 ):
     """

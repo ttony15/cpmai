@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     doc_password: str = "admin"
 
     auth_algorithm: str = "HS256"
-    jwks_url: str
+    jwks_url: str | None = None
     openai_api_key: str
     openai_embedding_model: str = "text-embedding-3-small"
 
