@@ -1,7 +1,5 @@
-import base64
 import hashlib
 from enum import Enum
-from typing import List
 
 from fastapi import UploadFile
 from pydantic import BaseModel, field_validator, model_validator
@@ -29,7 +27,7 @@ class TrainFileDomain(str, Enum):
 
 class FileDetails(BaseModel):
     file: UploadFile
-    contents: str | None = None
+    contents: bytes | None = None
     file_hash: str | None = None
 
     @model_validator(mode="before")
@@ -41,7 +39,7 @@ class FileDetails(BaseModel):
         values["file_hash"] = sha256_hash
 
         # Base64 encode the content
-        values["contents"] = base64.b64encode(file_content).decode("utf-8")
+        values["contents"] = file_content
 
         # Reset file pointer to beginning for potential future reads
         values.get("file").file.seek(0)
@@ -53,24 +51,22 @@ class TrainIn(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
-    files: List[UploadFile]
+    file: UploadFile
     file_type: TrainFileOptions
     domain: TrainFileDomain
-    files_details: List[FileDetails] | None = None
+    file_details: FileDetails | None = None
 
-    @field_validator("files", mode="before")
-    def validate_file_type(cls, files: List[UploadFile]) -> List[UploadFile]:
-        for file in files:
-            if file is not None:
-                allowed_extensions = settings.allowed_file_extensions
-                if not any(
-                    file.filename.lower().endswith(ext) for ext in allowed_extensions
-                ):
-                    raise train_exceptions.InvalidFileType().as_exception()
-
-        return files
+    @field_validator("file", mode="before")
+    def validate_file_type(cls, file: UploadFile) -> UploadFile:
+        if file is not None:
+            allowed_extensions = settings.allowed_file_extensions
+            if not any(
+                file.filename.lower().endswith(ext) for ext in allowed_extensions
+            ):
+                raise train_exceptions.InvalidFileType().as_exception()
+        return file
 
 
 class TrainOut(BaseModel):
     message: str
-    progress_url: str
+    progress_url: str | None = None

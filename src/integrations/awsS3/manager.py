@@ -19,6 +19,8 @@ async def download(file_url):
 
 async def upload(file_name, file_content, content_type):
     try:
+        logger.info("[S3 MANAGER] Uploading file to S3")
+        logger.debug(f"[S3 MANAGER] {file_name}")
         async with get_client() as s3:
             await s3.put_object(
                 Bucket=settings.s3_bucket,

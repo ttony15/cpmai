@@ -1,4 +1,4 @@
-from typing import Tuple, Type, List
+from typing import Tuple, Type
 
 from pydantic_settings import (
     BaseSettings,
@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     s3_bucket: str = "cpm-raw-docs"
     aws_region: str = "us-east-1"
     s3_region: str = "us-east-1"
+    s3_access_key: str
+    s3_secret_key: str
     sqs_queue_url: str
     mongodb_uri: str
 

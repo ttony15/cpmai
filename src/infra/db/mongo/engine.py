@@ -48,13 +48,14 @@ def get_database(db_name: str | None = None) -> AsyncIOMotorDatabase:  # type: i
 async def init_beanine_db(database_name: str | None = None, document_models=[]):
     database = get_database(database_name)
 
-    from src.domains.train.models import TrainFiles
+    from src.domains.train.models import TrainFiles, TrainedModel
 
     await init_beanie(
         database,
         document_models=[
             # Import and provide mongoDB models here.
             TrainFiles,
+            TrainedModel,
         ],
     )
 
