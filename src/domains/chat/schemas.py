@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from fastapi import UploadFile
 import uuid
 
+
 # TODO: Move all schemas to schemas file.
 class ChatRequest(BaseModel):
     query: str

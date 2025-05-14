@@ -1,15 +1,12 @@
 import hashlib
 import uuid
-import json
-from typing import Optional
 from datetime import datetime
 
-import boto3
 from fastapi import UploadFile
 from loguru import logger
 
 
-from domains.chat.schemas import UploadResult, ChatInput, ChatResult
+from src.domains.chat.schemas import UploadResult, ChatInput, ChatResult
 from src.integrations.awsS3.manager import upload as s3_upload
 from src.integrations.awsSQS.manager import send_message as sqs_send
 
@@ -24,7 +21,11 @@ async def upload_file(
     file_id = str(uuid.uuid4())
 
     s3_key = f"raw/{file_id}/{file.filename}"
-    content_type = "application/pdf" if file.filename.endswith(".pdf") else "application/octet-stream"
+    content_type = (
+        "application/pdf"
+        if file.filename.endswith(".pdf")
+        else "application/octet-stream"
+    )
 
     s3_url = await s3_upload(
         file_name=s3_key, file_content=content, content_type=content_type
@@ -40,7 +41,7 @@ async def upload_file(
             "s3_key": s3_key,
             "hash": file_hash,
             "file_type": file_type,
-            "project_id": project_id ,
+            "project_id": project_id,
             "filename": file.filename,
             "timestamp": datetime.utcnow().isoformat(),
         }
@@ -58,11 +59,9 @@ async def upload_file(
 async def process_chat(prompt_input: ChatInput) -> ChatResult:
     """Main flow for processing a chat with optional documents"""
 
+
 async def get_project_chats(project_id: str):
     """Get all chats for a project"""
     # Todo:
     # Implement logic
-    return {
-        "project_id": project_id,
-        "chats": []
-    }
+    return {"project_id": project_id, "chats": []}

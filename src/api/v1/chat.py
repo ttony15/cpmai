@@ -1,13 +1,13 @@
-from typing import List, Optional, Any
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
-from pydantic import BaseModel
+from typing import List, Any
+from fastapi import APIRouter, Depends, UploadFile, File, Form
 
-from domains.chat.schemas import ChatRequest
+from src.domains.chat.schemas import ChatRequest
 from src.dependencies.auth.auth import verify_jwt
 import src.domains.chat.flows as chat_flows
 import src.domains.chat.schemas as chat_schemas
 
 chat_router = APIRouter(tags=["chat"])
+
 
 @chat_router.get(
     "/{project_id}",
@@ -15,15 +15,14 @@ chat_router = APIRouter(tags=["chat"])
     summary="Endpoint to fetch previous projects from auth id",
 )
 async def get_chats(
-        project_id: str,
+    project_id: str,
 ):
-    """ Endpoint to fetch previous chats of a projects from auth id"""
+    """Endpoint to fetch previous chats of a projects from auth id"""
     return await chat_flows.get_project_chats(project_id)
 
+
 @chat_router.post(
-    "/{project_id}",
-    operation_id="api.chat.ask",
-    summary="Endpoint to ask new chats"
+    "/{project_id}", operation_id="api.chat.ask", summary="Endpoint to ask new chats"
 )
 async def ask_chat(request: ChatRequest, auth: Any = Depends(verify_jwt)):
     """Endpoint to ask new chats
@@ -66,5 +65,3 @@ async def upload(
         file_type=file_type,
     )
     return await chat_flows.upload_file(chat_input)
-
-

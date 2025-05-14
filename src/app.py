@@ -2,9 +2,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-import os
 
 from src.api import api_router
 from src.core.settings import settings
@@ -16,7 +13,7 @@ async def lifespan(
     app: FastAPI,
     **kwargs,
 ):
-    # await init_beanine_db()
+    await init_beanine_db()
     yield
 
 

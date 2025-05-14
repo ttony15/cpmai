@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from aiobotocore.session import get_session
 from src.core.settings import settings
 
+
 @asynccontextmanager
 async def get_client():
     session = get_session()
