@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     openai_api_key: str
     openai_embedding_model: str = "text-embedding-3-small"
     s3_bucket: str = "cpm-raw-docs"
+    aws_region: str = "us-east-1"
+    s3_region: str = "us-east-1"
     sqs_queue_url: str
     mongo_db_uri: str
 

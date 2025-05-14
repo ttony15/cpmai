@@ -3,6 +3,17 @@ from pydantic import BaseModel, Field
 from fastapi import UploadFile
 import uuid
 
+# TODO: Move all schemas to schemas file.
+class ChatRequest(BaseModel):
+    query: str
+    project_id: Optional[str] = None
+
+
+class ChatResponse(BaseModel):
+    response: str
+    sources: List[dict] = []
+    file_ids: List[str] = []
+
 
 class UploadResult(BaseModel):
     file_id: str
@@ -11,7 +22,7 @@ class UploadResult(BaseModel):
     filename: str
 
 
-class PromptInput(BaseModel):
+class ChatInput(BaseModel):
     user_id: str
     query: str
     project_id: Optional[str] = None
@@ -30,7 +41,7 @@ class DocumentInfo(BaseModel):
     file_hash: str
 
 
-class PromptResult(BaseModel):
+class ChatResult(BaseModel):
     response: str
     sources: List[Dict[str, Any]] = []
     file_ids: List[str] = []
