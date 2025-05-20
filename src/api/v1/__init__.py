@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-
+from src.api.v1.files import files_router
 from src.api.v1.hearbeat import heartbeat_router
 from src.api.v1.report import report_router
 from src.api.v1.chat import chat_router
@@ -14,3 +14,4 @@ v1_router.include_router(report_router, prefix="/report")
 v1_router.include_router(chat_router, prefix="/chats")
 v1_router.include_router(project_router, prefix="/projects")
 v1_router.include_router(training_router, prefix="/train")
+v1_router.include_router(files_router, prefix="/files")
