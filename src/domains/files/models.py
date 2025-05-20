@@ -10,6 +10,7 @@ class UploadedFile(BaseModel):
     s3_key: str
     file_description: str = ""
     document_category: str = "other"  # drawing, specification, quote, contract, schedule, other
+    analysis_result: Optional[str] = None
 
 
 class FileInfo(Document):

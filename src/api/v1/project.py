@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Query, Body, HTTPException, status
 from loguru import logger
 import datetime
-from typing import Optional
 
 from src.integrations.awsSQS.manager import send_message
 from src.domains.project.flows import (
@@ -11,7 +10,12 @@ from src.domains.project.flows import (
     get_projects as get_projects_flow,
     update_project as update_project_flow,
 )
-from src.domains.project.schemas import ProjectCreate, ProjectUpdate, ProjectResponse, ProjectListResponse
+from src.domains.project.schemas import (
+    ProjectCreate,
+    ProjectUpdate,
+    ProjectResponse,
+    ProjectListResponse,
+)
 
 project_router = APIRouter(tags=["Project"])
 
@@ -42,24 +46,21 @@ async def get_projects(
                 description=project.description,
                 status=project.status,
                 created_at=project.created_at,
-                updated_at=project.updated_at
-            ) for project in projects
+                updated_at=project.updated_at,
+            )
+            for project in projects
         ]
 
         # Return the response
         return ProjectListResponse(
-            total=total,
-            page=page,
-            page_size=page_size,
-            projects=project_responses
+            total=total, page=page, page_size=page_size, projects=project_responses
         )
     except Exception as e:
         logger.error(f"Error getting projects for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve projects"
+            detail="Failed to retrieve projects",
         )
-
 
 
 @project_router.post(
@@ -69,9 +70,7 @@ async def get_projects(
     response_model=ProjectResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_project(
-    project_data: ProjectCreate = Body(...)
-):
+async def create_project(project_data: ProjectCreate = Body(...)):
     """Create a new auth user's project"""
     user_id = "test_user_id"  # TODO: Get user id from jwt
 
@@ -87,13 +86,13 @@ async def create_project(
             description=project.description,
             status=project.status,
             created_at=project.created_at,
-            updated_at=project.updated_at
+            updated_at=project.updated_at,
         )
     except Exception as e:
         logger.error(f"Error creating project for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create project"
+            detail="Failed to create project",
         )
 
 
@@ -116,7 +115,7 @@ async def get_project(
         if not project:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Project with ID {project_id} not found"
+                detail=f"Project with ID {project_id} not found",
             )
 
         # Return the response
@@ -127,7 +126,7 @@ async def get_project(
             description=project.description,
             status=project.status,
             created_at=project.created_at,
-            updated_at=project.updated_at
+            updated_at=project.updated_at,
         )
     except HTTPException:
         raise
@@ -135,7 +134,7 @@ async def get_project(
         logger.error(f"Error getting project {project_id} for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve project"
+            detail="Failed to retrieve project",
         )
 
 
@@ -159,7 +158,7 @@ async def update_project(
         if not project:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Project with ID {project_id} not found"
+                detail=f"Project with ID {project_id} not found",
             )
 
         # Return the response
@@ -170,7 +169,7 @@ async def update_project(
             description=project.description,
             status=project.status,
             created_at=project.created_at,
-            updated_at=project.updated_at
+            updated_at=project.updated_at,
         )
     except HTTPException:
         raise
@@ -178,7 +177,7 @@ async def update_project(
         logger.error(f"Error updating project {project_id} for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update project"
+            detail="Failed to update project",
         )
 
 
@@ -197,13 +196,17 @@ async def delete_project():
 )
 async def process_project(project_id: str):
     """Process the project files to SQL to process the project"""
+    user_id = "test_user_id"
     try:
         # Save the project ID and set status as in_progress in the database
-        await update_project_status(project_id, "in_progress")
+        await update_project_status(
+            user_id=user_id, project_id=project_id, status="in_progress"
+        )
         logger.info(f"Project status updated to in_progress: {project_id}")
 
         message = {
             "project_id": project_id,
+            "user_id": user_id,
             "action": "process",
             "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
         }
