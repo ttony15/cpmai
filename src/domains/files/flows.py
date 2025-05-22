@@ -12,6 +12,7 @@ from src.domains.files.schemas import (
 )
 from src.domains.files.models import UploadedFile
 from src.integrations.awsS3.manager import upload as s3_upload
+from src.core.settings import settings
 
 
 async def upload_file(
@@ -41,6 +42,22 @@ async def upload_file(
         file = file_detail.file
         file_name = file.filename
         content_type = file.content_type or "application/octet-stream"
+        file_hash = file_detail.file_hash
+
+        # Check if file with the same hash already exists
+        existing_file = await UploadedFile.find_one(
+            {
+                "file_hash": file_hash,
+                "project_id": file_input.project_id
+            }
+        )
+
+        if existing_file:
+            logger.info(f"File with hash {file_hash} already exists, skipping upload")
+            # Get the S3 URL for the existing file using the same pattern as in s3_upload
+            s3_url = f"https://{settings.s3_bucket}.s3.{settings.s3_region}.amazonaws.com/{existing_file.s3_key}"
+            uploaded_files.append(UploadedFileInfo(file_name=file_name, s3_url=s3_url))
+            continue
 
         # Create S3 key with user_id/project_id/file_name structure
         s3_key = (
@@ -61,6 +78,7 @@ async def upload_file(
                 s3_key=s3_key,
                 user_id=file_input.user_id,
                 project_id=file_input.project_id,
+                file_hash=file_hash,
                 file_description="",
                 document_category="other",
             )

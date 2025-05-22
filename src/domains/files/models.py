@@ -10,6 +10,7 @@ class UploadedFile(Document):
     s3_key: str
     user_id: str
     project_id: str
+    file_hash: Optional[str] = None
     file_description: str = ""
     document_category: str = (
         "other"  # drawing, specification, quote, contract, schedule, other
@@ -22,5 +23,3 @@ class UploadedFile(Document):
 
     class Settings:
         name = "uploaded_files"
-
-
