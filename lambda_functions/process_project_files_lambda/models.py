@@ -62,6 +62,7 @@ class FileInfo:
         created_at,
         project_id,
         user_id,
+        file_hash,
         file_description="",
         document_category="other",
         analysis_result=None,
@@ -76,6 +77,7 @@ class FileInfo:
         self.created_at = created_at
         self.project_id = project_id
         self.user_id = user_id
+        self.file_hash = file_hash
 
     def dict(self):
         """Convert the uploaded file to a dictionary"""
@@ -90,6 +92,7 @@ class FileInfo:
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "project_id": self.project_id,
             "user_id": self.user_id,
+            "file_hash": self.file_hash,
         }
 
     @classmethod
