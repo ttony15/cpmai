@@ -75,3 +75,34 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error updating project status: {e}")
             return False
+
+    def update_file(self, file):
+        """
+        Update file in the database
+
+        Args:
+            file (FileInfo): The file object to update
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            file_dict = file.dict()
+            result = self.db["uploaded_files"].update_one(
+                {"_id": file._id},
+                {"$set": file_dict},
+            )
+
+            if result.modified_count > 0:
+                logger.info(
+                    f"Successfully updated file {file.file_name} in MongoDB"
+                )
+                return True
+            else:
+                logger.warning(
+                    f"No file documents were updated in MongoDB for file {file.file_name}"
+                )
+                return False
+        except Exception as e:
+            logger.error(f"Error updating file: {e}")
+            return False

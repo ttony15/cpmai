@@ -90,7 +90,12 @@ class ProjectFileService:
                         f"Failed to generate embeddings for file: {file.file_name}"
                     )
 
-            # 4. Save the updated file_info back to MongoDB
+                # 4. Save the updated file back to MongoDB
+                update_result = self.db_manager.update_file(file)
+                if update_result:
+                    logger.info(f"Successfully updated file in database: {file.file_name}")
+                else:
+                    logger.error(f"Failed to update file in database: {file.file_name}")
             return True
         except Exception as e:
             logger.error(f"Error processing files: {e}")
