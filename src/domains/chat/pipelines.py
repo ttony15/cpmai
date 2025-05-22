@@ -9,7 +9,7 @@ async def chat_pipeline(query_embedding, context: ChatInput):
         {
             "$vectorSearch": {
                 "index": "file_index",
-                "path": "files.embeddings",
+                "path": "embeddings",
                 "queryVector": query_embedding,
                 "numCandidates": 150,
                 "limit": 100,

@@ -1,12 +1,18 @@
 from loguru import logger
-from typing import List
 
 from src.domains.files.schemas import (
-    FileInput, GetFilesInput, GetFilesOutput, FileInfo as FileInfoSchema,
-    UploadFileOutput, UploadedFileInfo, UpdateFileDescriptionInput, UpdateFileDescriptionOutput
+    FileInput,
+    GetFilesInput,
+    GetFilesOutput,
+    FileInfo as FileInfoSchema,
+    UploadFileOutput,
+    UploadedFileInfo,
+    UpdateFileDescriptionInput,
+    UpdateFileDescriptionOutput,
 )
-from src.domains.files.models import FileInfo, UploadedFile
+from src.domains.files.models import UploadedFile
 from src.integrations.awsS3.manager import upload as s3_upload
+from src.core.settings import settings
 
 
 async def upload_file(
@@ -26,23 +32,32 @@ async def upload_file(
         f"Uploading {len(file_input.file_details)} files for project {file_input.project_id}"
     )
 
-    # Get or create FileInfo document
-    file_info = await FileInfo.find_one(
-        {"user_id": file_input.user_id, "project_id": file_input.project_id}
-    )
-
-    if not file_info:
-        file_info = FileInfo(
-            user_id=file_input.user_id, project_id=file_input.project_id, files=[]
-        )
+    # We no longer need to get or create FileInfo document
+    # as we're using UploadedFile for everything
 
     uploaded_files = []
 
-    # Upload each file to S3 and add to file_info
+    # Upload each file to S3 and create UploadedFile documents
     for file_detail in file_input.file_details:
         file = file_detail.file
         file_name = file.filename
         content_type = file.content_type or "application/octet-stream"
+        file_hash = file_detail.file_hash
+
+        # Check if file with the same hash already exists
+        existing_file = await UploadedFile.find_one(
+            {
+                "file_hash": file_hash,
+                "project_id": file_input.project_id
+            }
+        )
+
+        if existing_file:
+            logger.info(f"File with hash {file_hash} already exists, skipping upload")
+            # Get the S3 URL for the existing file using the same pattern as in s3_upload
+            s3_url = f"https://{settings.s3_bucket}.s3.{settings.s3_region}.amazonaws.com/{existing_file.s3_key}"
+            uploaded_files.append(UploadedFileInfo(file_name=file_name, s3_url=s3_url))
+            continue
 
         # Create S3 key with user_id/project_id/file_name structure
         s3_key = (
@@ -57,19 +72,24 @@ async def upload_file(
         )
 
         if s3_url:
-            # Add file information to file_info
-            file_info.files.append(
-                UploadedFile(file_name=file_name, s3_key=s3_key, file_description="", document_category="other")
+            # Create and save UploadedFile document
+            uploaded_file = UploadedFile(
+                file_name=file_name,
+                s3_key=s3_key,
+                user_id=file_input.user_id,
+                project_id=file_input.project_id,
+                file_hash=file_hash,
+                file_description="",
+                document_category="other",
             )
-            uploaded_files.append(UploadedFileInfo(file_name=file_name, s3_url=s3_url))
+            await uploaded_file.save()
 
-    # Save file_info to MongoDB
-    await file_info.save()
+            uploaded_files.append(UploadedFileInfo(file_name=file_name, s3_url=s3_url))
 
     return UploadFileOutput(
         status="success",
         message=f"Successfully uploaded {len(uploaded_files)} files",
-        files=uploaded_files
+        files=uploaded_files,
     )
 
 
@@ -83,18 +103,20 @@ async def get_user_files(file_input: GetFilesInput) -> GetFilesOutput:
     Returns:
         GetFilesOutput object containing status, message, and files
     """
-    logger.info(f"Retrieving files for user {file_input.user_id} and project {file_input.project_id}")
-
-    # Find FileInfo document for the user and project
-    file_info = await FileInfo.find_one(
-        {"user_id": file_input.user_id, "project_id": file_input.project_id}
+    logger.info(
+        f"Retrieving files for user {file_input.user_id} and project {file_input.project_id}"
     )
 
-    if not file_info:
+    # Find all UploadedFile documents for the user and project
+    uploaded_files = await UploadedFile.find(
+        {"user_id": file_input.user_id, "project_id": file_input.project_id}
+    ).to_list()
+
+    if not uploaded_files:
         return GetFilesOutput(
             status="error",
             message=f"No files found for user {file_input.user_id} and project {file_input.project_id}",
-            files=[]
+            files=[],
         )
 
     # Extract file information
@@ -103,22 +125,18 @@ async def get_user_files(file_input: GetFilesInput) -> GetFilesOutput:
             file_name=file.file_name,
             s3_key=file.s3_key,
             file_description=file.file_description,
-            document_category=file.document_category
+            document_category=file.document_category,
         )
-        for file in file_info.files
+        for file in uploaded_files
     ]
 
     return GetFilesOutput(
-        status="success",
-        message=f"Found {len(files)} files",
-        files=files
+        status="success", message=f"Found {len(files)} files", files=files
     )
 
 
 async def update_file_description(
-    user_id: str,
-    project_id: str,
-    update_input: UpdateFileDescriptionInput
+    user_id: str, project_id: str, update_input: UpdateFileDescriptionInput
 ) -> UpdateFileDescriptionOutput:
     """
     Update file description for a specific file
@@ -131,49 +149,41 @@ async def update_file_description(
     Returns:
         UpdateFileDescriptionOutput object containing status, message, and updated file
     """
-    logger.info(f"Updating file description for user {user_id} and project {project_id}")
-
-    # Find FileInfo document for the user and project
-    file_info = await FileInfo.find_one(
-        {"user_id": user_id, "project_id": project_id}
+    logger.info(
+        f"Updating file description for user {user_id} and project {project_id}"
     )
 
-    if not file_info:
+    # Find the UploadedFile document with the specified user_id, project_id, and s3_key
+    uploaded_file = await UploadedFile.find_one({
+        "user_id": user_id, 
+        "project_id": project_id,
+        "s3_key": update_input.s3_key
+    })
+
+    if not uploaded_file:
         return UpdateFileDescriptionOutput(
             status="error",
-            message=f"No files found for user {user_id} and project {project_id}",
-            file=None
+            message=f"File with s3_key {update_input.s3_key} not found for user {user_id} and project {project_id}",
+            file=None,
         )
 
-    # Find the file with the specified s3_key
-    file_found = False
-    updated_file = None
+    # Update the file description and category
+    uploaded_file.file_description = update_input.file_description
+    uploaded_file.document_category = update_input.document_category
 
-    for file in file_info.files:
-        if file.s3_key == update_input.s3_key:
-            file.file_description = update_input.file_description
-            file.document_category = update_input.document_category
-            file_found = True
-            updated_file = FileInfoSchema(
-                file_name=file.file_name,
-                s3_key=file.s3_key,
-                file_description=file.file_description,
-                document_category=file.document_category
-            )
-            break
+    # Save the updated UploadedFile document
+    await uploaded_file.save()
 
-    if not file_found:
-        return UpdateFileDescriptionOutput(
-            status="error",
-            message=f"File with s3_key {update_input.s3_key} not found",
-            file=None
-        )
-
-    # Save the updated FileInfo document
-    await file_info.save()
+    # Create the response object
+    updated_file = FileInfoSchema(
+        file_name=uploaded_file.file_name,
+        s3_key=uploaded_file.s3_key,
+        file_description=uploaded_file.file_description,
+        document_category=uploaded_file.document_category,
+    )
 
     return UpdateFileDescriptionOutput(
         status="success",
         message="File description updated successfully",
-        file=updated_file
+        file=updated_file,
     )
