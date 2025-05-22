@@ -45,24 +45,6 @@ async def llm_stream(
                     yield chunk.choices[0].delta.content
 
 
-async def create_embeddings(context: str):
-    """
-    Create embeddings of text
-    :param context:
-    :return:
-    """
-    try:
-        client = await get_client()
-        response = await client.embeddings.create(
-            input=context,
-            model=settings.openai_embedding_model,
-        )
-        return response.data[0].embedding
-    except Exception as e:
-        logger.error(f"Error in create_embeddings: {e}")
-        return []
-
-
 async def finetune_model(
     jsonl_training_data: str, model: str = "gpt-4o-mini-2024-07-18"
 ):
@@ -94,3 +76,34 @@ async def finetune_model(
     except Exception as e:
         logger.error(f"Error in finetune_model: {e}")
         raise e
+
+
+async def generate_embeddings(data):
+    """
+    Generate embeddings for a file using OpenAI
+
+    Args:
+        data str: The content of the file
+
+    Returns:
+        list: The embeddings for the file, or None if an error occurs
+    """
+    try:
+        logger.debug(f"Generating embeddings for data: {data}")
+
+        # Generate embeddings using OpenAI
+        client = await get_client()
+        response = await client.embeddings.create(
+            model=settings.openai_embedding_model,
+            input=data,
+        )
+
+        # Extract the embedding vector
+        embedding = response.data[0].embedding
+
+        logger.debug(f"Successfully generated embeddings for file: {data}")
+        return embedding
+
+    except Exception as e:
+        logger.error(f"Error generating embeddings: {e}")
+        return None

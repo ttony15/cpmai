@@ -51,6 +51,7 @@ async def init_beanine_db(database_name: str | None = None, document_models=[]):
     from src.domains.train.models import TrainFiles, TrainedModel
     from src.domains.files.models import FileInfo
     from src.domains.project.models import Project
+    from src.domains.files.models import UploadedFile
 
     await init_beanie(
         database,
@@ -60,6 +61,7 @@ async def init_beanine_db(database_name: str | None = None, document_models=[]):
             TrainedModel,
             FileInfo,
             Project,
+            UploadedFile,
         ],
     )
 

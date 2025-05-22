@@ -54,17 +54,31 @@ class UploadedFile:
     """Model for storing uploaded file information"""
 
     def __init__(
-        self, file_name, s3_key, file_description="", document_category="other", analysis_result=None
+        self,
+        _id,
+        revision_id,
+        file_name,
+        s3_key,
+        embeddings,
+        file_description="",
+        document_category="other",
+        analysis_result=None,
     ):
+        self._id = _id
+        self.revision_id = revision_id
         self.file_name = file_name
         self.s3_key = s3_key
         self.file_description = file_description
         self.document_category = document_category
         self.analysis_result = analysis_result
+        self.embeddings = embeddings
 
     def dict(self):
         """Convert the uploaded file to a dictionary"""
         return {
+            "_id": self._id,
+            "revision_id": self.revision_id,
+            "embeddings": self.embeddings,
             "file_name": self.file_name,
             "s3_key": self.s3_key,
             "file_description": self.file_description,

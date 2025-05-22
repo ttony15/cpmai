@@ -4,10 +4,8 @@ from fastapi import UploadFile
 import uuid
 
 
-# TODO: Move all schemas to schemas file.
 class ChatRequest(BaseModel):
     query: str
-    project_id: Optional[str] = None
 
 
 class ChatResponse(BaseModel):

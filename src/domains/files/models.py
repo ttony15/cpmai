@@ -1,16 +1,19 @@
 from beanie import Document
-from pydantic import Field, BaseModel
+from pydantic import Field
 from typing import List, Optional
 import datetime
 import zoneinfo
 
 
-class UploadedFile(BaseModel):
+class UploadedFile(Document):
     file_name: str
     s3_key: str
     file_description: str = ""
-    document_category: str = "other"  # drawing, specification, quote, contract, schedule, other
-    analysis_result: Optional[str] = None
+    document_category: str = (
+        "other"  # drawing, specification, quote, contract, schedule, other
+    )
+    analysis_result: Optional[dict] = None
+    embeddings: List[float] | None = None
 
 
 class FileInfo(Document):

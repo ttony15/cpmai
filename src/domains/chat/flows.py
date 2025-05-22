@@ -1,67 +1,42 @@
-import hashlib
-import uuid
-from datetime import datetime
+from typing import AsyncIterator
 
-from fastapi import UploadFile
-from loguru import logger
+import orjson
 
+from src.domains.chat.pipelines import chat_pipeline
+from src.domains.chat.schemas import ChatInput
 
-from src.domains.chat.schemas import UploadResult, ChatInput, ChatResult
-from src.integrations.awsS3.manager import upload as s3_upload
-from src.integrations.awsSQS.manager import send_message as sqs_send
+import src.integrations.openai.manager as ai_manager
+import src.domains.files.models as file_models
 
 
-async def upload_file(
-    file: UploadFile, file_type: str, project_id: str
-) -> UploadResult:
-    """Upload a file to S3 and trigger queue for processing"""
+async def semantic_search(context: ChatInput):
+    """Semantic search for relevant chunks"""
+    query_embeddings = await ai_manager.generate_embeddings(context.query)
+    pipeline = await chat_pipeline(query_embeddings, context)
 
-    content = await file.read()
-    file_hash = hashlib.sha256(content).hexdigest()
-    file_id = str(uuid.uuid4())
+    results = []
 
-    s3_key = f"raw/{file_id}/{file.filename}"
-    content_type = (
-        "application/pdf"
-        if file.filename.endswith(".pdf")
-        else "application/octet-stream"
-    )
-
-    s3_url = await s3_upload(
-        file_name=s3_key, file_content=content, content_type=content_type
-    )
-
-    if not s3_url:
-        logger.error(f"Failed to upload file: {file.filename}")
-        # You might want to handle this error case appropriately
-    else:
-        # If S3 upload succeeded
-        message = {
-            "file_id": file_id,
-            "s3_key": s3_key,
-            "hash": file_hash,
-            "file_type": file_type,
-            "project_id": project_id,
-            "filename": file.filename,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-        sqs_response = await sqs_send(message)
-        if sqs_response:
-            logger.info(f"File sent to processing queue: {file_id}")
-        else:
-            logger.warning(f"Failed to send message to SQS for file: {file_id}")
-
-    return UploadResult(
-        file_id=file_id, s3_key=s3_key, file_hash=file_hash, filename=file.filename
-    )
+    async for doc in file_models.FileInfo.aggregate(pipeline):
+        doc.pop("_id", None)
+        for file in doc["files"]:
+            file.pop("embeddings", None)
+        results.append(doc)
+    return results
 
 
-async def process_chat(prompt_input: ChatInput) -> ChatResult:
-    """Main flow for processing a chat with optional documents"""
+async def chat(context: ChatInput) -> AsyncIterator[str]:
+    """Main flow for processing a chat with project details"""
 
+    matches = await semantic_search(context)
 
-async def get_project_chats(project_id: str):
-    """Get all chats for a project"""
-    # Todo:
-    # Implement logic
-    return {"project_id": project_id, "chats": []}
+    prompt = f"""
+    Your role is to act as a helpful AI assistant. Please answer the user's question using only the information 
+    provided below. If the answer isn't in the provided text, simply state that you don't have enough 
+    information to answer. Please do not make up any details. Respond back in markdown format.
+    
+    Information: {orjson.dumps(matches, option=orjson.OPT_INDENT_2).decode("utf-8")}
+    User query: {context.query}
+    """
+
+    async for chunk in ai_manager.llm_stream(prompt):
+        yield chunk

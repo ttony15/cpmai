@@ -9,6 +9,7 @@ dependencies = [
     "fastapi>=0.115.12",
     "loguru>=0.7.3",
     "openai>=1.78.1",
+    "orjson>=3.10.18",
     "pydantic-settings>=2.9.1",
     "pymupdf>=1.25.5",
     "python-jose>=3.4.0",

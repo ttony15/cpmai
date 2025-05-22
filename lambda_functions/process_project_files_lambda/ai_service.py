@@ -28,14 +28,28 @@ class AIService(ABC):
     def process_file(self, file_content, file_name, document_category):
         """
         Process a file with the AI service
-        
+
         Args:
             file_content (bytes or str): The content of the file
             file_name (str): The name of the file
             document_category (str): The category of the document
-            
+
         Returns:
             dict: The analysis result, or None if an error occurs
+        """
+        pass
+
+    @abstractmethod
+    def generate_embeddings(self, data):
+        """
+        Generate embeddings for a file
+
+        Args:
+            file_content (bytes or str): The content of the file
+            file_name (str): The name of the file
+
+        Returns:
+            list: The embeddings for the file, or None if an error occurs
         """
         pass
 
@@ -51,42 +65,44 @@ class GeminiService(AIService):
     def process_file(self, file_content, file_name, document_category):
         """
         Process a file with Gemini
-        
+
         Args:
             file_content (bytes or str): The content of the file
             file_name (str): The name of the file
             document_category (str): The category of the document
-            
+
         Returns:
             dict: The analysis result, or None if an error occurs
         """
         try:
-            logger.info(f"Processing file with Gemini: {file_name}, Category: {document_category}")
-            
+            logger.info(
+                f"Processing file with Gemini: {file_name}, Category: {document_category}"
+            )
+
             # Check if the file is a PDF
             is_pdf = file_name.lower().endswith(".pdf")
-            
+
             if is_pdf:
                 # Encode the PDF as base64
                 base64_pdf = base64.b64encode(file_content).decode("utf-8")
-                
+
                 # Create a prompt for PDF analysis
                 prompt = self._get_pdf_prompt()
-                
+
                 # Send it to Gemini with the file
                 response = self.model.generate_content(
                     [prompt, {"mime_type": "application/pdf", "data": base64_pdf}]
                 )
-                
+
                 # Parse the response
                 return self._parse_gemini_response(response.text)
-            
+
             # For now, only handle PDFs
             return None
         except Exception as e:
             logger.error(f"Error processing file with Gemini: {e}")
             return None
-    
+
     def _get_pdf_prompt(self):
         """Get the prompt for PDF analysis"""
         return """
@@ -179,24 +195,46 @@ Your entire response MUST be a single JSON object. Do NOT include any introducto
 }
 ```
 """
-    
+
     def _parse_gemini_response(self, response_text):
         """Parse the response from Gemini"""
         try:
             # Attempt to strip Markdown fences if present
-            if response_text.strip().startswith("```json") and response_text.strip().endswith("```"):
+            if response_text.strip().startswith(
+                "```json"
+            ) and response_text.strip().endswith("```"):
                 # Remove the leading '```json' and trailing '```'
-                json_string_to_parse = response_text.strip()[len("```json"):].rsplit("```", 1)[0].strip()
+                json_string_to_parse = (
+                    response_text.strip()[len("```json") :].rsplit("```", 1)[0].strip()
+                )
             else:
                 # If no markdown fences, assume it's pure JSON
                 json_string_to_parse = response_text.strip()
-            
+
             # Repair and parse the JSON
             good_json_string = repair_json(json_string_to_parse)
             return orjson.loads(good_json_string)
         except Exception as e:
             logger.error(f"Error parsing Gemini response: {e}")
             return None
+
+    def generate_embeddings(self, data):
+        """
+        Generate embeddings for a file using Gemini
+
+        Note: This is a placeholder method. Gemini doesn't support embeddings in the same way as OpenAI.
+        For actual embeddings, use the OpenAIService.
+
+        Args:
+            data str: The content of the file
+
+        Returns:
+            list: None, as Gemini doesn't support embeddings in this implementation
+        """
+        logger.warning(
+            f"Embeddings generation not implemented for Gemini. File: {data}"
+        )
+        return None
 
 
 class OpenAIService(AIService):
@@ -206,32 +244,35 @@ class OpenAIService(AIService):
         """Initialize the OpenAI service"""
         self.client = openai.OpenAI(api_key=OPEN_API_KEY)
         self.model = "gpt-4o-mini"
+        self.embedding_model = "text-embedding-3-small"
 
     def process_file(self, file_content, file_name, document_category):
         """
         Process a file with OpenAI
-        
+
         Args:
             file_content (bytes or str): The content of the file
             file_name (str): The name of the file
             document_category (str): The category of the document
-            
+
         Returns:
             dict: The analysis result, or None if an error occurs
         """
         try:
-            logger.info(f"Processing file with OpenAI: {file_name}, Category: {document_category}")
-            
+            logger.info(
+                f"Processing file with OpenAI: {file_name}, Category: {document_category}"
+            )
+
             # Check if the file is a PDF
             is_pdf = file_name.lower().endswith(".pdf")
-            
+
             if is_pdf:
                 # Create a BytesIO object from the file content
                 file_bytes = BytesIO(file_content)
-                
+
                 # Create a prompt for PDF analysis
                 prompt = self._get_pdf_prompt(file_name, document_category)
-                
+
                 # Send it to OpenAI with the file
                 response = self.client.chat.completions.create(
                     model=self.model,
@@ -255,7 +296,7 @@ class OpenAIService(AIService):
                     ],
                     temperature=0.7,
                 )
-                
+
                 # Return the response
                 return {
                     "file_name": file_name,
@@ -268,12 +309,16 @@ class OpenAIService(AIService):
                     try:
                         file_content = file_content.decode("utf-8")
                     except UnicodeDecodeError:
-                        logger.error(f"Failed to decode file content as UTF-8: {file_name}")
+                        logger.error(
+                            f"Failed to decode file content as UTF-8: {file_name}"
+                        )
                         return None
-                
+
                 # Create a prompt for text analysis
-                prompt = self._get_text_prompt(file_name, document_category, file_content)
-                
+                prompt = self._get_text_prompt(
+                    file_name, document_category, file_content
+                )
+
                 # Send it to OpenAI
                 response = self.client.chat.completions.create(
                     model=self.model,
@@ -286,7 +331,7 @@ class OpenAIService(AIService):
                     ],
                     temperature=0.7,
                 )
-                
+
                 # Return the response
                 return {
                     "file_name": file_name,
@@ -296,7 +341,7 @@ class OpenAIService(AIService):
         except Exception as e:
             logger.error(f"Error processing file with OpenAI: {e}")
             return None
-    
+
     def _get_pdf_prompt(self, file_name, document_category):
         """Get the prompt for PDF analysis"""
         return f"""
@@ -314,7 +359,7 @@ JSON example:
 "trade_requirements": ["Give all list of trade requirements based on this document"],
 }}
 """
-    
+
     def _get_text_prompt(self, file_name, document_category, file_content):
         """Get the prompt for text analysis"""
         return f"""
@@ -328,18 +373,47 @@ File Content:
 Please analyze this file and provide insights based on its content and category.
 """
 
+    def generate_embeddings(self, data):
+        """
+        Generate embeddings for a file using OpenAI
+
+        Args:
+            data str: The content of the file
+
+        Returns:
+            list: The embeddings for the file, or None if an error occurs
+        """
+        try:
+            logger.debug(f"Generating embeddings for data: {data}")
+
+            # Generate embeddings using OpenAI
+            response = self.client.embeddings.create(
+                model=self.embedding_model,
+                input=data,
+            )
+
+            # Extract the embedding vector
+            embedding = response.data[0].embedding
+
+            logger.debug(f"Successfully generated embeddings for file: {data}")
+            return embedding
+
+        except Exception as e:
+            logger.error(f"Error generating embeddings: {e}")
+            return None
+
 
 class AIServiceFactory:
     """Factory class for creating AI services"""
-    
+
     @staticmethod
     def get_service(service_type="gemini"):
         """
         Get an AI service based on the service type
-        
+
         Args:
             service_type (str): The type of AI service to use (gemini or openai)
-            
+
         Returns:
             AIService: An instance of the requested AI service
         """

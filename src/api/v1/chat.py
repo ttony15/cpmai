@@ -1,8 +1,9 @@
-from typing import Any
-from fastapi import APIRouter, Depends
+from typing import AsyncIterator
+
+from fastapi import APIRouter
+from starlette.responses import StreamingResponse
 
 from src.domains.chat.schemas import ChatRequest
-from src.dependencies.auth.auth import verify_jwt
 import src.domains.chat.flows as chat_flows
 import src.domains.chat.schemas as chat_schemas
 
@@ -24,13 +25,27 @@ async def get_chats(
 @chat_router.post(
     "/{project_id}", operation_id="api.chat.ask", summary="Endpoint to ask new chats"
 )
-async def ask_chat(request: ChatRequest, auth: Any = Depends(verify_jwt)):
+async def ask_chat(
+    project_id: str,
+    request: ChatRequest,
+) -> StreamingResponse:
     """Endpoint to ask new chats
     - **query**: the query to ask new chats
     - **project_id**: the project id of the current user which is optional
     """
-    user_id = auth["sub"]
+    user_id = "test_user_id"
     chat_input = chat_schemas.ChatInput(
-        user_id=user_id, query=request.query, project_id=request.project_id, files=None
+        user_id=user_id,
+        query=request.query,
+        project_id=project_id,
+        files=None,
     )
-    return await chat_flows.process_chat(chat_input)
+
+    async def formatted_response() -> AsyncIterator[str]:
+        async for chunk in chat_flows.chat(chat_input):
+            yield chunk
+
+    return StreamingResponse(
+        content=formatted_response(),
+        media_type="application/x-ndjson",
+    )
