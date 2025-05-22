@@ -49,7 +49,6 @@ async def init_beanine_db(database_name: str | None = None, document_models=[]):
     database = get_database(database_name)
 
     from src.domains.train.models import TrainFiles, TrainedModel
-    from src.domains.files.models import FileInfo
     from src.domains.project.models import Project
     from src.domains.files.models import UploadedFile
 
@@ -59,7 +58,6 @@ async def init_beanine_db(database_name: str | None = None, document_models=[]):
             # Import and provide mongoDB models here.
             TrainFiles,
             TrainedModel,
-            FileInfo,
             Project,
             UploadedFile,
         ],

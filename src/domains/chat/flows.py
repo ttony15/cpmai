@@ -16,10 +16,9 @@ async def semantic_search(context: ChatInput):
 
     results = []
 
-    async for doc in file_models.FileInfo.aggregate(pipeline):
+    async for doc in file_models.UploadedFile.aggregate(pipeline):
         doc.pop("_id", None)
-        for file in doc["files"]:
-            file.pop("embeddings", None)
+        doc.pop("embeddings", None)
         results.append(doc)
     return results
 
@@ -33,7 +32,7 @@ async def chat(context: ChatInput) -> AsyncIterator[str]:
     Your role is to act as a helpful AI assistant. Please answer the user's question using only the information 
     provided below. If the answer isn't in the provided text, simply state that you don't have enough 
     information to answer. Please do not make up any details. Respond back in markdown format.
-    
+
     Information: {orjson.dumps(matches, option=orjson.OPT_INDENT_2).decode("utf-8")}
     User query: {context.query}
     """

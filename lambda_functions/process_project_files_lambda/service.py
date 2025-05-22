@@ -4,8 +4,7 @@ Service Module for Process Project Files Lambda
 This file contains the business logic service for the process_project_files_lambda.
 """
 
-import json
-
+import orjson
 from loguru import logger
 from lambda_functions.process_project_files_lambda.database import DatabaseManager
 from lambda_functions.process_project_files_lambda.file_service import S3Manager
@@ -28,28 +27,31 @@ class ProjectFileService:
         self.s3_manager = S3Manager()
         self.ai_service = AIServiceFactory.get_service(ai_service_type)
 
-    def process_files(self, file_info):
+    def process_files(self, files):
         """
         Process files associated with a project
 
         Args:
-            file_info: The file info object containing project and file information
+            files: The file info object containing project and file information
 
         Returns:
             bool: True if successful, False otherwise
         """
         try:
-            if not file_info or not file_info.files:
+            if not files:
                 logger.warning("No files to process")
                 return False
 
-            logger.info(f"Processing {len(file_info.files)} files")
+            logger.info(f"Processing {len(files)} files")
 
             # Process each file
-            for file in file_info.files:
+            for file in files:
                 logger.info(
                     f"Processing file: {file.file_name}, Category: {file.document_category}"
                 )
+
+                if file.analysis_result:
+                    continue
 
                 # 1. Download the file from S3
                 file_content = self.s3_manager.download_file(file.s3_key)
@@ -73,7 +75,11 @@ class ProjectFileService:
 
                 # Generate embeddings before saving.
                 ai_service = AIServiceFactory.get_service("openai")
-                embeddings = ai_service.generate_embeddings(json.dumps(file.dict()))
+                file_raw_data = file.dict()
+                file_raw_data.pop("_id")
+                embeddings = ai_service.generate_embeddings(
+                    orjson.dumps(file_raw_data).decode("utf-8")
+                )
                 if embeddings:
                     file.embeddings = embeddings
                     logger.info(
@@ -85,39 +91,7 @@ class ProjectFileService:
                     )
 
             # 4. Save the updated file_info back to MongoDB
-            return self._update_database(file_info)
+            return True
         except Exception as e:
             logger.error(f"Error processing files: {e}")
-            return False
-
-    def _update_database(self, file_info):
-        """
-        Update the database with the processed file information
-
-        Args:
-            file_info: The file info object containing project and file information
-
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        try:
-            # Update the file info in the database
-            file_update_result = self.db_manager.update_file_info(
-                file_info.project_id, [file.dict() for file in file_info.files]
-            )
-
-            # Update the project status to completed
-            project_update_result = self.db_manager.update_project_status(
-                file_info.project_id, "completed"
-            )
-
-            # Return True if both updates were successful
-            if file_update_result and project_update_result:
-                logger.info("File processing completed successfully")
-                return True
-            else:
-                logger.warning("File processing completed with warnings")
-                return False
-        except Exception as e:
-            logger.error(f"Error updating database: {e}")
             return False
