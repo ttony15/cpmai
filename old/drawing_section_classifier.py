@@ -10,6 +10,7 @@ invokes a vision+LLM pipeline to tag each sheet by trade, and writes results to 
 - Model router: picks GPT-4o / Claude / Llama based on token count
 - Writes `sheet_class` table (project_id, sheet_id, trade, embeddings)
 """
+
 import os
 import io
 import json
@@ -38,17 +39,22 @@ TABLE = os.environ.get("TABLE_CLASS", "sheet_class")
 
 # AWS & DB clients
 ssm = boto3.client("secretsmanager")
-s3  = boto3.client("s3")
+s3 = boto3.client("s3")
 # fetch secrets
 db_cfg = json.loads(ssm.get_secret_value(SecretId=DB_SECRET_ID)["SecretString"])
 conn = psycopg2.connect(**db_cfg, sslmode="require")
 conn.autocommit = True
 # LLM clients
-anthropic_key = json.loads(ssm.get_secret_value(SecretId=ANTHROPIC_SECRET)["SecretString"])["ANTHROPIC_API_KEY"]
+anthropic_key = json.loads(
+    ssm.get_secret_value(SecretId=ANTHROPIC_SECRET)["SecretString"]
+)["ANTHROPIC_API_KEY"]
 a_client = AnthropicClient(api_key=anthropic_key)
-openai.api_key = json.loads(ssm.get_secret_value(SecretId=OPENAI_SECRET)["SecretString"])["OPENAI_API_KEY"]
+openai.api_key = json.loads(
+    ssm.get_secret_value(SecretId=OPENAI_SECRET)["SecretString"]
+)["OPENAI_API_KEY"]
 # embedding model
 EMB_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+
 
 # ---------------- UTILITIES ----------------
 def ocr_text_from_s3(key: str) -> str:
@@ -64,6 +70,7 @@ def ocr_text_from_s3(key: str) -> str:
     res = tex.detect_document_text(Document={"Bytes": data})
     return "\n".join([b["Text"] for b in res["Blocks"] if b["BlockType"] == "LINE"])
 
+
 async def caption_image(key: str) -> str:
     """Invoke a BLIP-2 caption endpoint for richer context."""
     try:
@@ -78,29 +85,35 @@ async def caption_image(key: str) -> str:
     except Exception:
         return ""
 
+
 async def call_llm(model: str, prompt: str) -> dict:
     """Route prompt to chosen LLM and parse JSON result."""
     if model.startswith("gpt"):  # GPT-4o
         resp = openai.ChatCompletion.create(
             model=model,
-            messages=[{"role":"system","content":"Return JSONONLY."}, {"role":"user","content":prompt}],
+            messages=[
+                {"role": "system", "content": "Return JSONONLY."},
+                {"role": "user", "content": prompt},
+            ],
             temperature=0,
-            response_format={"type":"json_object"}
+            response_format={"type": "json_object"},
         )
         return resp.choices[0].message.content
     # Claude or Llama similar...
     # (omitted for brevity)
     return {}
 
+
 # ------------------ MAIN --------------------
 def lambda_handler(event, context):
     """S3 event triggers classification of new drawings."""
     records = event.get("Records", [])
-    tasks: List[Tuple[str,str]] = []
+    tasks: List[Tuple[str, str]] = []
     for r in records:
         key = r["s3"]["object"]["key"]
-        if not key.endswith(".pdf"): continue
-        project_id, sheet_id = key.split("/",2)[1:3]
+        if not key.endswith(".pdf"):
+            continue
+        project_id, sheet_id = key.split("/", 2)[1:3]
         tasks.append((project_id, key))
 
     with conn.cursor() as cur:
@@ -115,5 +128,5 @@ def lambda_handler(event, context):
             emb = EMB_MODEL.encode(caption + text).tolist()
             # insert
             sql = f"INSERT INTO {TABLE}(project_id,sheet_id,trade,embedding) VALUES %s"
-            execute_values(cur, sql, [ (project_id, sheet_id, trade, json.dumps(emb)) ])
-    return {"status":"ok"}
+            execute_values(cur, sql, [(project_id, sheet_id, trade, json.dumps(emb))])
+    return {"status": "ok"}

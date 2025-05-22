@@ -1,11 +1,9 @@
 import asyncio
 
 from beanie import init_beanie
-from loguru import logger
 from motor.core import AgnosticClient
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo import MongoClient
-from pymongo.operations import SearchIndexModel
 
 from src.core.settings import settings
 
@@ -19,7 +17,7 @@ def get_client() -> AgnosticClient:
         loop = asyncio.new_event_loop()
 
     client = AsyncIOMotorClient(
-        str(settings.mongo_db_uri),
+        str(settings.mongodb_uri),
         tlsAllowInvalidCertificates=True,
         io_loop=loop,
         tz_aware=True,
@@ -32,7 +30,7 @@ def get_sync_client() -> MongoClient:
     """Get the MongoDB client."""
 
     client = MongoClient(
-        str(settings.mongo_db_uri),
+        str(settings.mongodb_uri),
         tlsAllowInvalidCertificates=True,
     )
 
@@ -50,10 +48,20 @@ def get_database(db_name: str | None = None) -> AsyncIOMotorDatabase:  # type: i
 async def init_beanine_db(database_name: str | None = None, document_models=[]):
     database = get_database(database_name)
 
+    from src.domains.train.models import TrainFiles, TrainedModel
+    from src.domains.files.models import FileInfo
+    from src.domains.project.models import Project
+    from src.domains.files.models import UploadedFile
+
     await init_beanie(
         database,
         document_models=[
             # Import and provide mongoDB models here.
+            TrainFiles,
+            TrainedModel,
+            FileInfo,
+            Project,
+            UploadedFile,
         ],
     )
 

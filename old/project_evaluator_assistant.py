@@ -18,6 +18,7 @@ This FastAPI service answers PM-style queries on a project using:
 - Inline `##` explainers throughout code
 - Writes audit records to Postgres `query_audit` table
 """
+
 from __future__ import annotations
 import asyncio
 import json
@@ -39,12 +40,12 @@ import requests
 # ---------------------------------------------------------------------------
 ## CONFIGURATION & CLIENTS
 # ---------------------------------------------------------------------------
-DB_SECRET_ID          = os.environ["DB_SECRET_ID"]
-OPENAI_SECRET         = os.environ["OPENAI_SECRET"]
-JWKS_URL              = os.environ["JWKS_URL"]         # e.g. Auth0 JWKS
-RFI_QUEUE_URL         = os.environ.get("RFI_QUEUE_URL")  # SQS URL for auto-RFI
-CONFIDENCE_THRESHOLD  = float(os.environ.get("CONFIDENCE_THRESHOLD", "0.7"))
-K_RETRIEVE            = int(os.environ.get("RAG_TOP_K", "5"))
+DB_SECRET_ID = os.environ["DB_SECRET_ID"]
+OPENAI_SECRET = os.environ["OPENAI_SECRET"]
+JWKS_URL = os.environ["JWKS_URL"]  # e.g. Auth0 JWKS
+RFI_QUEUE_URL = os.environ.get("RFI_QUEUE_URL")  # SQS URL for auto-RFI
+CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", "0.7"))
+K_RETRIEVE = int(os.environ.get("RAG_TOP_K", "5"))
 
 # AWS & service clients
 ssm = boto3.client("secretsmanager")
@@ -70,7 +71,10 @@ app = FastAPI(title="Project Evaluator & Assistant", version="0.3")
 ## AUTHENTICATION DEPENDENCY
 # ---------------------------------------------------------------------------
 
-def verify_jwt(token: str = Depends(lambda req: req.headers.get("Authorization", "").split()[-1])):
+
+def verify_jwt(
+    token: str = Depends(lambda req: req.headers.get("Authorization", "").split()[-1]),
+):
     """
     Validate JWT using JWKS
     """
@@ -84,15 +88,18 @@ def verify_jwt(token: str = Depends(lambda req: req.headers.get("Authorization",
     payload = jose_jwt.decode(token, key.to_dict(), algorithms=[header["alg"]])
     return payload  # contains `sub` as user_id
 
+
 # ---------------------------------------------------------------------------
 ## UTILITY: COSINE SIMILARITY
 # ---------------------------------------------------------------------------
+
 
 def cosine_similarity(a: List[float], b: List[float]) -> float:
     """Compute cosine similarity between two vectors."""
     dot = sum(x * y for x, y in zip(a, b))
     mag = sqrt(sum(x * x for x in a)) * sqrt(sum(y * y for y in b))
     return dot / mag if mag else 0.0
+
 
 # ---------------------------------------------------------------------------
 ## CONTEXT RETRIEVAL (RAG)
@@ -103,21 +110,21 @@ async def retrieve_context(question: str, ctx: Dict[str, Any]) -> str:
     2) Score and select top-K
     3) Return tagged snippets for LLM proof
     """
-    candidates: List[Tuple[str,str]] = []
+    candidates: List[Tuple[str, str]] = []
     # Prepare quote candidates
     for q in ctx["quotes"]:
-        txt = f"QUOTE[{q['trade']}|{q['vendor']}]: price=${q['price']:.2f}, exclusions={q.get('exclusions',[])}"
+        txt = f"QUOTE[{q['trade']}|{q['vendor']}]: price=${q['price']:.2f}, exclusions={q.get('exclusions', [])}"
         candidates.append((f"quote:{q['vendor']}", txt))
     # Prepare scope candidates
     for s in ctx["scopes"]:
-        items = s['scope_json'].get('scope_items', [])
+        items = s["scope_json"].get("scope_items", [])
         txt = f"SCOPE[{s['trade']}]: {len(items)} items"
         candidates.append((f"scope:{s['trade']}", txt))
     texts = [question] + [t for _, t in candidates]
 
     # Embed all texts
     resp = openai.embeddings.create(model="text-embedding-ada-002", input=texts)
-    embeddings = [r['embedding'] for r in resp['data']]
+    embeddings = [r["embedding"] for r in resp["data"]]
     q_emb = embeddings[0]
     doc_embs = embeddings[1:]
 
@@ -135,9 +142,11 @@ async def retrieve_context(question: str, ctx: Dict[str, Any]) -> str:
         proof_ctx += f"## SOURCE: {tag} (sim={sim:.2f})\n" + txt + "\n\n"
     return proof_ctx.strip()
 
+
 # ---------------------------------------------------------------------------
 ## PROJECT CONTEXT FETCHER
 # ---------------------------------------------------------------------------
+
 
 def fetch_project_context(project_id: str) -> Dict[str, Any]:
     """
@@ -148,18 +157,27 @@ def fetch_project_context(project_id: str) -> Dict[str, Any]:
         # Project name
         cur.execute("SELECT name FROM projects WHERE id=%s", (project_id,))
         row = cur.fetchone()
-        ctx['project_name'] = row['name'] if row else 'Unknown'
+        ctx["project_name"] = row["name"] if row else "Unknown"
         # Quotes
-        cur.execute("SELECT trade,vendor,price,scope,exclusions FROM quotes WHERE project_id=%s", (project_id,))
-        ctx['quotes'] = cur.fetchall() or []
+        cur.execute(
+            "SELECT trade,vendor,price,scope,exclusions FROM quotes WHERE project_id=%s",
+            (project_id,),
+        )
+        ctx["quotes"] = cur.fetchall() or []
         # Scopes
-        cur.execute("SELECT trade,scope_json FROM trade_scopes WHERE project_id=%s", (project_id,))
-        ctx['scopes'] = cur.fetchall() or []
+        cur.execute(
+            "SELECT trade,scope_json FROM trade_scopes WHERE project_id=%s",
+            (project_id,),
+        )
+        ctx["scopes"] = cur.fetchall() or []
         # Budget
-        cur.execute("SELECT budget_json FROM optimal_budget WHERE project_id=%s", (project_id,))
+        cur.execute(
+            "SELECT budget_json FROM optimal_budget WHERE project_id=%s", (project_id,)
+        )
         row = cur.fetchone()
-        ctx['budget'] = row['budget_json'] if row else {}
+        ctx["budget"] = row["budget_json"] if row else {}
     return ctx
+
 
 # ---------------------------------------------------------------------------
 ## LLM INVOCATION
@@ -168,32 +186,45 @@ async def ask_llm_stream(model: str, system: str, prompt: str) -> str:
     """Stream chat completion tokens."""
     stream = openai.chat.completions.create(
         model=model,
-        messages=[{'role':'system','content':system},{'role':'user','content':prompt}],
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ],
         temperature=0,
-        stream=True
+        stream=True,
     )
-    result = ''
+    result = ""
     async for chunk in stream:
-        delta = chunk.choices[0].delta.get('content', '')
+        delta = chunk.choices[0].delta.get("content", "")
         result += delta
         yield delta
     return result
+
 
 async def ask_llm_once(model: str, system: str, prompt: str) -> str:
     """Single-turn chat completion (for confidence rating)."""
     resp = openai.chat.completions.create(
         model=model,
-        messages=[{'role':'system','content':system},{'role':'user','content':prompt}],
-        temperature=0
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0,
     )
     return resp.choices[0].message.content
+
 
 # ---------------------------------------------------------------------------
 ## AUDIT TRAIL STORES
 # ---------------------------------------------------------------------------
 async def store_audit(
-    project_id: str, user_id: str, question: str,
-    proof_ctx: str, quotes: List[Any], scopes: List[Any], answer: str
+    project_id: str,
+    user_id: str,
+    question: str,
+    proof_ctx: str,
+    quotes: List[Any],
+    scopes: List[Any],
+    answer: str,
 ):
     """
     Write each query + proof to `query_audit` table for replay.
@@ -206,52 +237,63 @@ async def store_audit(
                                      answer, created_at)
             VALUES (%s,%s,%s,%s,%s,%s,%s, NOW())
             """,
-            (project_id, user_id, question,
-             proof_ctx,
-             json.dumps(quotes),
-             json.dumps(scopes),
-             answer)
+            (
+                project_id,
+                user_id,
+                question,
+                proof_ctx,
+                json.dumps(quotes),
+                json.dumps(scopes),
+                answer,
+            ),
         )
+
 
 # ---------------------------------------------------------------------------
 ## AUTO-RFI: CONFIDENCE CHECK & QUEUE
 # ---------------------------------------------------------------------------
-async def check_and_queue_rfi(answer: str, question: str, project_id: str, user_id: str, model: str):
+async def check_and_queue_rfi(
+    answer: str, question: str, project_id: str, user_id: str, model: str
+):
     """
     Rate confidence and queue RFI if below threshold.
     """
-    system = ("You rate the confidence of the previous answer [0-1]. "
-              "Return JSON {confidence:float}.")
+    system = (
+        "You rate the confidence of the previous answer [0-1]. "
+        "Return JSON {confidence:float}."
+    )
     prompt = f"Answer:\n{answer}\nRate confidence:"
     rating = 0.0
     try:
         eval_json = await ask_llm_once(model, system, prompt)
-        rating = json.loads(eval_json).get('confidence', 0.0)
+        rating = json.loads(eval_json).get("confidence", 0.0)
     except:
         rating = 0.0
     if rating < CONFIDENCE_THRESHOLD and RFI_QUEUE_URL:
         payload = {
-            'project_id': project_id,
-            'user_id': user_id,
-            'question': question,
-            'answer': answer,
-            'confidence': rating,
-            'timestamp': time.time()
+            "project_id": project_id,
+            "user_id": user_id,
+            "question": question,
+            "answer": answer,
+            "confidence": rating,
+            "timestamp": time.time(),
         }
         sqs.send_message(QueueUrl=RFI_QUEUE_URL, MessageBody=json.dumps(payload))
         logging.warning(f"Queued RFI (conf={rating:.2f}) for {project_id}")
+
 
 # ---------------------------------------------------------------------------
 ## MODEL ROUTER
 # ---------------------------------------------------------------------------
 def choose_model_alias(prompt_len: int) -> str:
     """Select between GPT-4o and Claude based on prompt size."""
-    return 'claude-3-opus-20240229' if prompt_len>90000 else 'gpt-4o-128k'
+    return "claude-3-opus-20240229" if prompt_len > 90000 else "gpt-4o-128k"
+
 
 # ---------------------------------------------------------------------------
 ## /query ENDPOINT
 # ---------------------------------------------------------------------------
-@app.post('/query')
+@app.post("/query")
 async def query(request: Request, auth: Any = Depends(verify_jwt)):
     """
     1) Parse payload
@@ -262,9 +304,9 @@ async def query(request: Request, auth: Any = Depends(verify_jwt)):
     6) Post-process: store audit + trigger RFI
     """
     data = await request.json()
-    project_id = data['project_id']
-    question   = data['question']
-    user_id    = auth['sub']
+    project_id = data["project_id"]
+    question = data["question"]
+    user_id = auth["sub"]
 
     # Fetch project context
     ctx = fetch_project_context(project_id)
@@ -280,15 +322,13 @@ async def query(request: Request, auth: Any = Depends(verify_jwt)):
         "3) Exact match/diff logic explanation\n"
     )
     user_prompt = (
-        f"Project {ctx['project_name']}\n"  
-        f"Context:\n{proof_ctx}\n"  
-        f"Question: {question}\n"
+        f"Project {ctx['project_name']}\nContext:\n{proof_ctx}\nQuestion: {question}\n"
     )
 
     # Prepare to collect answer
-    answer_buf = ''
-    model_alias = choose_model_alias(len(user_prompt)//4)
-    
+    answer_buf = ""
+    model_alias = choose_model_alias(len(user_prompt) // 4)
+
     async def stream_gen():
         nonlocal answer_buf
         # Stream answer
@@ -296,12 +336,17 @@ async def query(request: Request, auth: Any = Depends(verify_jwt)):
             answer_buf += tok
             yield tok
         # Once complete: store audit and check RFI
-        await store_audit(project_id, user_id, question,
-                          proof_ctx, ctx['quotes'], ctx['scopes'], answer_buf)
-        asyncio.create_task(check_and_queue_rfi(answer_buf, question,
-                                                project_id, user_id, model_alias))
+        await store_audit(
+            project_id,
+            user_id,
+            question,
+            proof_ctx,
+            ctx["quotes"],
+            ctx["scopes"],
+            answer_buf,
+        )
+        asyncio.create_task(
+            check_and_queue_rfi(answer_buf, question, project_id, user_id, model_alias)
+        )
 
-    return StreamingResponse(stream_gen(), media_type='text/markdown')
-
-
-
+    return StreamingResponse(stream_gen(), media_type="text/markdown")

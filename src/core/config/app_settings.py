@@ -19,11 +19,17 @@ class Settings(BaseSettings):
     doc_password: str = "admin"
 
     auth_algorithm: str = "HS256"
-
+    jwks_url: str | None = None
     openai_api_key: str
     openai_embedding_model: str = "text-embedding-3-small"
-
-    mongo_db_uri: str
+    allowed_file_extensions: set = {"pdf"}
+    s3_bucket: str = "cpm-raw-docs"
+    aws_region: str = "us-east-1"
+    s3_region: str = "us-east-1"
+    s3_access_key: str
+    s3_secret_key: str
+    sqs_queue_url: str
+    mongodb_uri: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -35,12 +41,12 @@ class Settings(BaseSettings):
 
     @classmethod
     def settings_customise_sources(
-            cls,
-            settings_cls: Type[BaseSettings],
-            init_settings: PydanticBaseSettingsSource,
-            env_settings: PydanticBaseSettingsSource,
-            dotenv_settings: PydanticBaseSettingsSource,
-            file_secret_settings: PydanticBaseSettingsSource,
+        cls,
+        settings_cls: Type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
     ) -> Tuple[PydanticBaseSettingsSource, ...]:
         return (
             dotenv_settings,

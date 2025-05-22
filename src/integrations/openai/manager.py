@@ -1,4 +1,5 @@
 from typing import AsyncIterator
+import io
 
 from loguru import logger
 from openai.types.chat import ChatCompletionChunk
@@ -7,29 +8,18 @@ from src.core.settings import settings
 from src.integrations.openai.client import get_client
 
 
-async def openai_complete(prompt, file=None):
+async def openai_complete(prompt):
     client = await get_client()
 
     messages = [
         {
             "role": "user",
-            "content": [
-                {"type": "text", "text": prompt},
-            ],
+            "content": prompt,
         }
     ]
-
-    if file:
-        messages[0]["content"].append(
-            {
-                "type": "image_url",
-                "image_url": {"url": f"data:image/jpeg;base64,{file}"},
-            }
-        )
-
     response = await client.chat.completions.create(
         messages=messages,
-        model="gpt-4-turbo",
+        model="gpt-4o-mini",
         stream=False,
     )
     return response.choices[0].message.content
@@ -55,19 +45,65 @@ async def llm_stream(
                     yield chunk.choices[0].delta.content
 
 
-async def create_embeddings(context: str):
+async def finetune_model(
+    jsonl_training_data: str, model: str = "gpt-4o-mini-2024-07-18"
+):
     """
-    Create embeddings of text
-    :param context:
-    :return:
+    Finetune a model with the provided training data
+    :param jsonl_training_data: JSONL string containing the training data
+    :param model: The base model to finetune
+    :return: The fine-tuning job details
     """
     try:
+        logger.info("[OPENAI MANAGER] Finetuning")
+        logger.debug(f"[OPENAI MANAGER] {model}")
+        client = await get_client()
+
+        # Create a file-like object from the JSONL string
+        bytes_data = jsonl_training_data.encode("utf-8")
+        file_obj = io.BytesIO(bytes_data)
+
+        # Upload the training data directly from memory
+        file_response = await client.files.create(file=file_obj, purpose="fine-tune")
+
+        # Create a fine-tuning job
+        job_response = await client.fine_tuning.jobs.create(
+            training_file=file_response.id, model=model
+        )
+
+        logger.info(f"Fine-tuning job created: {job_response.id}")
+        return job_response
+    except Exception as e:
+        logger.error(f"Error in finetune_model: {e}")
+        raise e
+
+
+async def generate_embeddings(data):
+    """
+    Generate embeddings for a file using OpenAI
+
+    Args:
+        data str: The content of the file
+
+    Returns:
+        list: The embeddings for the file, or None if an error occurs
+    """
+    try:
+        logger.debug(f"Generating embeddings for data: {data}")
+
+        # Generate embeddings using OpenAI
         client = await get_client()
         response = await client.embeddings.create(
-            input=context,
             model=settings.openai_embedding_model,
+            input=data,
         )
-        return response.data[0].embedding
+
+        # Extract the embedding vector
+        embedding = response.data[0].embedding
+
+        logger.debug(f"Successfully generated embeddings for file: {data}")
+        return embedding
+
     except Exception as e:
-        logger.error(f"Error in create_embeddings: {e}")
-        return []
+        logger.error(f"Error generating embeddings: {e}")
+        return None
